@@ -1,26 +1,17 @@
 from flask import Flask, request, jsonify
-import os
-from dotenv import load_dotenv
-from pymongo import MongoClient
-import bcrypt
+from backend_common.envdb import db, ensure_user_indexes
+from backend_common.security import verify_password, hash_password
+from datetime import datetime, timezone
+import re
 
-MONGODB_URI = os.getenv("MONGODB_URI")
-DB_NAME = os.getenv("DB_NAME", "appdb")
-
-client = MongoClient(MONGODB_URI)
-db = client[DB_NAME]
 app = Flask(__name__)
+ensure_user_indexes()
 
-@app.route('/')
-def hello_world():  # put application's code here
-    return 'Hello World!'
-
-if __name__ == '__main__':
-    app.run()
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 @app.get("/health")
 def health():
-    client.admin.command("ping")
+    db.client.admin.command("ping")
     return {"ok": True}
 
 @app.get("/users")
@@ -34,24 +25,52 @@ def list_users():
 def login():
     data = request.get_json(force=True, silent=True) or {}
     email = (data.get("email") or "").strip().lower()
-    password = data.get("password") or ""
-
+    pw = data.get("password") or ""
     user = db.users.find_one({"email": email})
     if not user or "passwordHash" not in user:
         return jsonify({"ok": False, "msg": "Invalid credentials"}), 401
-
-    ok = bcrypt.checkpw(password.encode(), user["passwordHash"].encode())
-    if not ok:
+    if not verify_password(pw, user["passwordHash"]):
         return jsonify({"ok": False, "msg": "Invalid credentials"}), 401
+    return jsonify({"ok": True, "user": {
+        "id": str(user["_id"]), "email": user["email"], "username": user["username"], "roles": user.get("roles", [])
+    }})
 
-    # Dev-only response. In a real app, return a JWT/session.
-    return jsonify({
-        "ok": True,
-        "user": {
-            "id": str(user["_id"]),
-            "email": user["email"],
-            "username": user["username"],
-            "roles": user.get("roles", []),
-        }
-    })
+@app.post("/auth/register")
+def register():
+    data = request.get_json(force=True, silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+    username = (data.get("username") or "").strip()
+    password = data.get("password") or ""
+    if not email or not username or not password:
+        return jsonify({"ok": False, "msg": "email, username, and password are required"}), 400
+    if not EMAIL_RE.match(email):
+        return jsonify({"ok": False, "msg": "invalid email"}), 400
+    if not (3 <= len(username) <= 40):
+        return jsonify({"ok": False, "msg": "username must be 3-40 chars"}), 400
+    if len(password) < 8:
+        return jsonify({"ok": False, "msg": "password must be at least 8 chars"}), 400
+    try:
+        now = datetime.now(timezone.utc)
+        res = db.users.insert_one({
+            "email": email,
+            "username": username,
+            "passwordHash": hash_password(password),
+            "roles": ["user"],
+            "createdAt": now,
+            "updatedAt": now,
+            "profile": {"firstName": None, "lastName": None, "avatarUrl": None},
+            "meta": {"emailVerified": False, "loginDisabled": False, "provider": "local"}
+        })
+    except Exception as e:
+        # duplicate handling
+        if db.users.find_one({"email": email}):
+            return jsonify({"ok": False, "msg": "email already in use"}), 409
+        if db.users.find_one({"username": username}):
+            return jsonify({"ok": False, "msg": "username already in use"}), 409
+        return jsonify({"ok": False, "msg": "unable to register"}), 400
+    return jsonify({"ok": True, "user": {
+        "id": str(res.inserted_id), "email": email, "username": username, "roles": ["user"]
+    }}), 201
 
+if __name__ == "__main__":
+    app.run(debug=True)
