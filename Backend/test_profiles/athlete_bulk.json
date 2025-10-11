@@ -1,0 +1,11 @@
+{
+    "name": "Marcus",
+    "age": 24,
+    "height_cm": 190,
+    "weight_kg": 85,
+    "activity_level": "very_active",
+    "dietary_restrictions": ["no_dairy"],
+    "dislikes": ["seafood"],
+    "caloric_goal": 3200,
+    "goal": "gain"
+}
