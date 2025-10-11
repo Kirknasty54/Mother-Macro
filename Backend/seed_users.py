@@ -1,41 +1,48 @@
 #!/usr/bin/env python3
 """
-Secure MongoDB Atlas seeder for dummy user/login data.
+Seed script: drop old users, insert fixed test accounts, and save plaintext creds to test-creds.txt
 
-What it does
-- Connects to your Atlas cluster using MONGODB_URI from .env
-- Creates unique indexes on email and username (idempotent)
-- Optionally sets a JSON Schema validator to enforce basic structure
-- Inserts N fake users with Bcrypt-hashed passwords (no plaintext stored)
-- Can also insert a few fixed test accounts you specify
+Usage (recommended, runs locally):
+  # create/activate venv then install deps:
+  # python -m venv .venv
+  # source .venv/bin/activate
+  # pip install -r requirements.txt
 
-Usage
-  1) cp .env.example .env  # edit values
-  2) pip install -r requirements.txt
-  3) python seed_users.py --count 50 --with-fixed
+  # Run: drop the collection and insert only fixed accounts (and write creds file)
+  python seed_users_writecreds.py --drop --with-fixed
 
-Notes
-- Never commit your real .env to git. Add ".env" to your .gitignore.
-- If you get auth/allowlist errors, add your IP in Atlas Network Access and create a DB user with proper roles.
+Notes:
+- This writes plaintext test credentials to test-creds.txt in the same folder.
+  The file is created with permission 0o600 (owner read/write only).
+- Do NOT commit test-creds.txt or .env to source control.
 """
-
-import argparse
 import os
 import sys
 import time
 from datetime import datetime, timezone
+from pathlib import Path
+from urllib.parse import quote_plus
 
 from bson import ObjectId
 from dotenv import load_dotenv
-from faker import Faker
 from pymongo import MongoClient, ASCENDING, errors
 import bcrypt
 
-fake = Faker()
+# ----- CONFIG -----
+CREDS_FILENAME = "test-creds.txt"
 
+# ----- Helpers -----
 def load_env():
     load_dotenv()
     mongo_uri = os.getenv("MONGODB_URI")
+    # support building from pieces if user set them instead
+    if not mongo_uri:
+        user = os.getenv("MONGODB_USER")
+        pw = os.getenv("MONGODB_PASSWORD")
+        host = os.getenv("MONGODB_HOST")
+        appname = os.getenv("MONGODB_APPNAME", "SeedScript")
+        if user and pw and host:
+            mongo_uri = f"mongodb+srv://{quote_plus(user)}:{quote_plus(pw)}@{host}/?retryWrites=true&w=majority&appName={appname}"
     db_name = os.getenv("DB_NAME", "appdb")
     coll_name = os.getenv("COLLECTION_NAME", "users")
     if not mongo_uri:
@@ -44,102 +51,19 @@ def load_env():
     return mongo_uri, db_name, coll_name
 
 def get_client(mongo_uri: str) -> MongoClient:
-    # MongoClient will use SRV and TLS if provided in the URI from Atlas
     try:
         client = MongoClient(mongo_uri, serverSelectionTimeoutMS=8000)
-        # Force a ping to validate the connection
         client.admin.command("ping")
         return client
     except errors.PyMongoError as e:
-        print(f"Connection error: {e}", file=sys.stderr)
+        print(f"Connection error: {e}")
         sys.exit(2)
-
-def ensure_indexes_and_schema(coll):
-    # Unique indexes
-    coll.create_index([("email", ASCENDING)], name="uniq_email", unique=True, background=True)
-    coll.create_index([("username", ASCENDING)], name="uniq_username", unique=True, background=True)
-    coll.create_index([("createdAt", ASCENDING)], name="createdAt_idx", background=True)
-
-    # Optional JSON Schema validator (basic example). Skip if permissions disallow collMod.
-    schema = {
-        "bsonType": "object",
-        "required": ["email", "username", "passwordHash", "roles", "createdAt"],
-        "properties": {
-            "email": {"bsonType": "string", "pattern": r"^[^@\s]+@[^@\s]+\.[^@\s]+$"},
-            "username": {"bsonType": "string", "minLength": 3, "maxLength": 40},
-            "passwordHash": {"bsonType": "string", "minLength": 20},
-            "roles": {
-                "bsonType": "array",
-                "items": {"bsonType": "string"},
-                "minItems": 1
-            },
-            "createdAt": {"bsonType": "date"},
-            "updatedAt": {"bsonType": "date"},
-            "profile": {
-                "bsonType": "object",
-                "properties": {
-                    "firstName": {"bsonType": "string"},
-                    "lastName": {"bsonType": "string"},
-                    "avatarUrl": {"bsonType": "string"},
-                }
-            }
-        },
-        "additionalProperties": True
-    }
-
-    try:
-        coll.database.command({
-            "collMod": coll.name,
-            "validator": {"$jsonSchema": schema},
-            "validationLevel": "moderate"
-        })
-    except errors.OperationFailure as e:
-        # If collection doesn't exist yet, create with validator
-        if "NamespaceNotFound" in str(e):
-            coll.database.create_collection(
-                coll.name,
-                validator={"$jsonSchema": schema},
-                validationLevel="moderate"
-            )
-        else:
-            # Not fatal—indexing still protects uniqueness
-            print(f"Schema set skipped: {e}", file=sys.stderr)
 
 def hash_password(plain: str) -> str:
     salt = bcrypt.gensalt(rounds=12)
     return bcrypt.hashpw(plain.encode("utf-8"), salt).decode("utf-8")
 
-def make_user() -> dict:
-    first = fake.first_name()
-    last = fake.last_name()
-    username = (first[0] + last).lower() + str(fake.random_int(10, 99))
-    email = f"{first.lower()}.{last.lower()}{fake.random_int(100,999)}@example.com"
-    password_plain = fake.password(length=12, special_chars=True, digits=True, upper_case=True, lower_case=True)
-    user = {
-        "_id": ObjectId(),
-        "email": email,
-        "username": username,
-        "passwordHash": hash_password(password_plain),
-        # You might log or return the plaintext ONLY during seeding if you need to test login flows.
-        # DO NOT store plaintext in the DB.
-        "roles": ["user"],
-        "createdAt": datetime.now(timezone.utc),
-        "updatedAt": datetime.now(timezone.utc),
-        "profile": {
-            "firstName": first,
-            "lastName": last,
-            "avatarUrl": f"https://i.pravatar.cc/150?u={username}"
-        },
-        "meta": {
-            "emailVerified": False,
-            "loginDisabled": False,
-            "provider": "local"
-        }
-    }
-    return user, password_plain
-
 def fixed_test_accounts():
-    # You can log these passwords to console for testing (do NOT store in DB).
     accounts = [
         ("test.user1@example.com", "testuser1", "Passw0rd!234"),
         ("test.user2@example.com", "testuser2", "Passw0rd!234"),
@@ -147,6 +71,7 @@ def fixed_test_accounts():
     ]
     docs = []
     creds = []
+    now = datetime.now(timezone.utc)
     for email, username, pw in accounts:
         docs.append({
             "_id": ObjectId(),
@@ -154,19 +79,41 @@ def fixed_test_accounts():
             "username": username,
             "passwordHash": hash_password(pw),
             "roles": ["admin"] if "admin" in username else ["user"],
-            "createdAt": datetime.now(timezone.utc),
-            "updatedAt": datetime.now(timezone.utc),
+            "createdAt": now,
+            "updatedAt": now,
             "profile": {"firstName": username.split('user')[0] or "Test", "lastName": "Account"},
             "meta": {"emailVerified": False, "loginDisabled": False, "provider": "local"}
         })
         creds.append((email, username, pw))
     return docs, creds
 
+def ensure_indexes(coll):
+    coll.create_index([("email", ASCENDING)], name="uniq_email", unique=True, background=True)
+    coll.create_index([("username", ASCENDING)], name="uniq_username", unique=True, background=True)
+
+def write_creds_file(creds, path: Path):
+    # write file with owner-only permissions
+    content_lines = []
+    content_lines.append("# test-creds.txt - temporary test credentials (delete when done)")
+    content_lines.append(f"# generated: {datetime.now(timezone.utc).isoformat()}")
+    content_lines.append("")
+    for email, username, pw in creds:
+        content_lines.append(f"email={email} | username={username} | password={pw}")
+    txt = "\n".join(content_lines) + "\n"
+    # atomic write
+    tmp = path.with_suffix(".tmp")
+    with open(tmp, "w", encoding="utf-8") as fh:
+        fh.write(txt)
+    # set file permissions to 0o600
+    os.chmod(tmp, 0o600)
+    tmp.replace(path)
+
+# ----- Main -----
 def main():
-    parser = argparse.ArgumentParser(description="Seed MongoDB Atlas with dummy users.")
-    parser.add_argument("--count", type=int, default=20, help="How many random users to create (default: 20).")
-    parser.add_argument("--with-fixed", action="store_true", help="Also insert fixed test accounts.")
-    parser.add_argument("--drop", action="store_true", help="Drop the collection before seeding (careful).")
+    import argparse
+    parser = argparse.ArgumentParser(description="Seed MongoDB with fixed test accounts and persist creds file.")
+    parser.add_argument("--with-fixed", action="store_true", help="Insert fixed known test accounts.")
+    parser.add_argument("--drop", action="store_true", help="Drop the collection before inserting (irreversible).")
     args = parser.parse_args()
 
     mongo_uri, db_name, coll_name = load_env()
@@ -177,43 +124,37 @@ def main():
     if args.drop:
         try:
             coll.drop()
-            print(f"Dropped collection '{db_name}.{coll_name}'")
-            time.sleep(0.5)
+            print(f"Dropped collection '{db_name}.{coll_name}'.")
+            time.sleep(0.3)
         except errors.PyMongoError as e:
-            print(f"Drop failed (continuing): {e}", file=sys.stderr)
+            print(f"Drop failed (continuing): {e}")
 
-    ensure_indexes_and_schema(coll)
+    ensure_indexes(coll)
 
-    # Build docs
-    docs = []
-    plain_creds = []  # Keep only in memory; printed once for testing convenience
+    inserted_docs = []
+    creds_to_save = []
+
     if args.with_fixed:
         fixed_docs, fixed_creds = fixed_test_accounts()
-        docs.extend(fixed_docs)
-        plain_creds.extend(fixed_creds)
+        try:
+            res = coll.insert_many(fixed_docs, ordered=False)
+            inserted_docs.extend(res.inserted_ids)
+            creds_to_save.extend(fixed_creds)
+        except errors.BulkWriteError as bwe:
+            # some duplicates may occur if you re-run w/out drop
+            print("Bulk write issues:", bwe.details.get("writeErrors", []))
+            # still attempt to collect all fixed creds to write them out
+            creds_to_save.extend(fixed_creds)
 
-    for _ in range(args.count):
-        u, pw = make_user()
-        docs.append(u)
-        plain_creds.append((u["email"], u["username"], pw))
+    # write the creds file if any creds were generated
+    if creds_to_save:
+        out_path = Path.cwd() / CREDS_FILENAME
+        write_creds_file(creds_to_save, out_path)
+        print(f"Wrote {len(creds_to_save)} test credentials to {out_path} (mode 600).")
 
-    # Insert
-    try:
-        if docs:
-            result = coll.insert_many(docs, ordered=False)
-            print(f"Inserted {len(result.inserted_ids)} users into {db_name}.{coll_name}")
-    except errors.BulkWriteError as bwe:
-        # Likely duplicate key errors from unique indexes if re-running with fixed users
-        print(f"Bulk write encountered issues: {bwe.details.get('writeErrors', [])}", file=sys.stderr)
-
-    # Print plaintext credentials for testing ONLY (do not log in production)
-    print("\n--- Temporary Test Credentials (NOT stored in DB) ---")
-    for (email, username, pw) in plain_creds[:10]:  # show up to 10 to avoid clutter
-        print(f"email={email} | username={username} | password={pw}")
-    if len(plain_creds) > 10:
-        print(f"... and {len(plain_creds)-10} more.")
-
-    print("\nDone.")
+    # final counts and info
+    total = coll.count_documents({})
+    print(f"Total documents in {db_name}.{coll_name}: {total}")
     client.close()
 
 if __name__ == "__main__":
