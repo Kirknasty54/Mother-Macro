@@ -63,7 +63,7 @@ def create_intake_agent():
         "You are Intake Agent. Validate the user's form and compute a suggested daily calorie target. "
         "Return JSON with keys: validated_form, suggested_calories."
     )
-    return Agent(system_prompt=prompt)
+    return Agent(name="IntakeAgent", system_prompt=prompt)
 
 
 def create_nutrition_agent():
@@ -72,7 +72,7 @@ def create_nutrition_agent():
         "You can call a local nutrition_lookup_tool for exact numbers."
     )
     # pass the tool as a Python-callable that the agent can call
-    return Agent(system_prompt=prompt, tools=[nutrition_lookup_tool])
+    return Agent(name="NutritionAgent", system_prompt=prompt, tools=[nutrition_lookup_tool])
 
 
 def create_planner_agent():
@@ -80,51 +80,44 @@ def create_planner_agent():
         "You are Planner Agent. Using the validated form and nutrition info, create a 7-day meal plan (3 meals + 1 snack per day) that meets the daily calorie target and respects restrictions. "
         "Return JSON with: meal_plan (dict day->meals), shopping_list (list), daily_totals (cal/protein/carbs/fat)."
     )
-    return Agent(system_prompt=prompt)
+    return Agent(name="PlannerAgent", system_prompt=prompt)
 
 # --- Core orchestration using Strands Swarm ---
 async def run_meal_planner_swarm(form: PreferenceForm) -> Dict[str, Any]:
-    shared = SharedContext()
-
     # create agents
     intake = create_intake_agent()
     nutrition = create_nutrition_agent()
     planner = create_planner_agent()
 
-    # build swarm: agents are ordered but swarm can be configured for more advanced patterns
-    # The API has changed from agents=[...] to simply passing the agent list directly
-    swarm = Swarm([intake, nutrition, planner], shared_context=shared)
+    # build swarm: pass agents list directly (no shared_context parameter)
+    swarm = Swarm([intake, nutrition, planner])
 
-    # put form into shared context
+    # prepare form data for the swarm
     # Use model_dump() for Pydantic v2, or dict() for v1
     try:
         # For Pydantic v2
-        shared.set("user_form", form.model_dump())
+        form_data = form.model_dump()
     except AttributeError:
         # Fallback for Pydantic v1
-        shared.set("user_form", form.dict())
+        form_data = form.dict()
 
-    # Give a top-level goal for the swarm
+    # Give a top-level goal for the swarm with the form data included
     goal = (
-        "Produce a 7-day meal plan and corresponding shopping list for the user. "
-        "Use the user_form from shared context and consult nutrition info as needed."
+        f"Produce a 7-day meal plan and corresponding shopping list for the user with the following preferences: {form_data}. "
+        "First validate and enrich the user data, then look up nutrition information as needed, "
+        "and finally create a complete meal plan that meets their caloric goals and dietary restrictions."
     )
 
-    # Run the swarm. API may have changed in current Strands version
-    try:
-        # Try the new API first
-        result = await swarm.execute(goal)
-    except (TypeError, AttributeError):
-        try:
-            # Fall back to older API with goal as parameter
-            result = await swarm.run(goal=goal)
-        except (TypeError, AttributeError):
-            # Last resort: try with positional parameter
-            result = await swarm.run(goal)
-
-    # result may contain the planner output; if not, agents should write into shared context
-    planner_output = shared.get("planner_output") or result
-    return planner_output
+    # Run the swarm using the correct API
+    result = await swarm.invoke_async(goal)
+    
+    # Extract the result content
+    if hasattr(result, 'content') and result.content:
+        return result.content
+    elif hasattr(result, 'response'):
+        return result.response
+    else:
+        return str(result)
 
 
 # --- Flask endpoint ---
