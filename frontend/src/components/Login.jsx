@@ -32,10 +32,11 @@ const Login = () => {
         {/* Header */}
         <div className="text-center">
           <h2 className="mt-6 text-4xl font-bold text-sage-800">
-            HealthEats
+            Mother Macro
           </h2>
           <p className="mt-2 text-lg text-sage-600">
-            Your journey to healthy eating starts here
+            Create personalized meal plans that will help you meet your macro goals and taste like they were cooked by your mother.
+            Mother Macro makes you meals that your mother would if she still loved you.
           </p>
         </div>
 
