@@ -72,5 +72,10 @@ def register():
         "id": str(res.inserted_id), "email": email, "username": username, "roles": ["user"]
     }}), 201
 
+#i imagine this is going to be what pings the aws agent to generate an actual plan based on data entered from front end
+@app.post("/createPlan")
+def createplan():
+    data = request.get_json(force=True, silent=True) or {}
+
 if __name__ == "__main__":
     app.run(debug=True)
