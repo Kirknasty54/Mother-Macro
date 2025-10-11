@@ -75,6 +75,7 @@ def register():
 
 #i imagine this is going to be what pings the aws agent to generate an actual plan based on data entered from front end
 @app.post("/createPlan")
+
 def createplan():
     data = request.get_json(force=True, silent=True) or {}
     
@@ -125,27 +126,102 @@ def createplan():
     - Food dislikes: {dislikes_text}
     - Goal: {goal} weight
     
-    Please provide a detailed 7-day meal plan with breakfast, lunch, dinner, and snacks that meets their nutritional needs and preferences."""
+    Please provide a detailed 7-day meal plan with breakfast, lunch, dinner, and snacks that meets their nutritional needs and preferences.
+    
+    Format your response as a JSON object with the following structure:
+    {{
+        "daily_plans": [
+            {{
+                "day": 1,
+                "day_name": "Monday",
+                "meals": {{
+                    "breakfast": {{
+                        "name": "meal name",
+                        "ingredients": ["ingredient1", "ingredient2"],
+                        "calories": 400,
+                        "prep_time": "15 minutes",
+                        "instructions": "cooking instructions"
+                    }},
+                    "lunch": {{ ... }},
+                    "dinner": {{ ... }},
+                    "snacks": [{{ ... }}]
+                }},
+                "total_calories": 2000,
+                "macros": {{
+                    "protein_g": 120,
+                    "carbs_g": 200,
+                    "fat_g": 80,
+                    "fiber_g": 25
+                }}
+            }}
+        ],
+        "shopping_list": ["item1", "item2", "item3"],
+        "nutritional_summary": {{
+            "daily_calorie_target": 2000,
+            "weekly_average_calories": 2000,
+            "protein_percentage": 25,
+            "carbs_percentage": 45,
+            "fat_percentage": 30
+        }}
+    }}
+    
+    Only return the JSON object, no additional text."""
     
     try:
         agent = Agent()
-        meal_plan = agent(prompt)
+        raw_response = agent(prompt)
         
-        return jsonify({
-            "ok": True, 
-            "meal_plan": meal_plan,
-            "user_info": {
-                "name": name,
-                "age": age,
-                "height_cm": height_cm,
-                "weight_kg": weight_kg,
-                "activity_level": activity_level,
-                "goal": goal
-            }
-        })
+        # Try to parse the agent's response as JSON
+        try:
+            import json
+            # Clean the response to extract JSON if wrapped in markdown or other text
+            response_text = raw_response.strip()
+            if response_text.startswith("```json"):
+                response_text = response_text[7:]
+            if response_text.startswith("```"):
+                response_text = response_text[3:]
+            if response_text.endswith("```"):
+                response_text = response_text[:-3]
+            
+            meal_plan_data = json.loads(response_text.strip())
+            
+            return jsonify({
+                "ok": True, 
+                "meal_plan": meal_plan_data,
+                "user_info": {
+                    "name": name,
+                    "age": age,
+                    "height_cm": height_cm,
+                    "weight_kg": weight_kg,
+                    "activity_level": activity_level,
+                    "goal": goal,
+                    "dietary_restrictions": dietary_restrictions,
+                    "dislikes": dislikes
+                }
+            })
+            
+        except json.JSONDecodeError:
+            # Fallback: return raw response if JSON parsing fails
+            return jsonify({
+                "ok": True, 
+                "meal_plan": {
+                    "raw_response": raw_response,
+                    "note": "Agent response could not be parsed as structured JSON"
+                },
+                "user_info": {
+                    "name": name,
+                    "age": age,
+                    "height_cm": height_cm,
+                    "weight_kg": weight_kg,
+                    "activity_level": activity_level,
+                    "goal": goal,
+                    "dietary_restrictions": dietary_restrictions,
+                    "dislikes": dislikes
+                }
+            })
         
     except Exception as e:
-        return jsonify({"ok": False, "msg": "Failed to generate meal plan"}), 500
+        return jsonify({"ok": False, "msg": f"Failed to generate meal plan: {str(e)}"}), 500
 
 if __name__ == "__main__":
     app.run(debug=True)
