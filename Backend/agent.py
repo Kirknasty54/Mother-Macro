@@ -1,0 +1,144 @@
+"""
+Simple Strands Agents multi-agent meal planner example
+- FastAPI endpoint receives user preferences & health goals
+- Spawns a small Strands Swarm with 3 agents:
+    1. intake_agent: validates and enriches user form
+    2. nutrition_agent: looks up nutrition facts (placeholder tool)
+    3. planner_agent: composes 7-day meal plan and shopping list
+
+Notes:
+- This is a minimal, runnable example. Adjust model/provider config per your environment.
+- Requires: `pip install strands-agents strands-agents-tools fastapi uvicorn pydantic`
+- The exact Strands API may change; treat this as a working template you can iterate on.
+"""
+from typing import List, Dict, Any
+import os
+from dotenv import load_dotenv
+from pydantic import BaseModel
+from flask import Flask, request, jsonify
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Configure OpenAI API key
+os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
+if not os.getenv("OPENAI_API_KEY"):
+    print("Warning: OPENAI_API_KEY not found in environment variables")
+
+# Strands imports
+from strands import Agent
+from strands.multiagent.swarm import Swarm, SharedContext
+
+# --- Pydantic schema for incoming form ---
+class PreferenceForm(BaseModel):
+    name: str
+    age: int
+    height_cm: int
+    weight_kg: float
+    activity_level: str  # sedentary, light, moderate, active
+    dietary_restrictions: List[str] = []  # e.g. ["vegetarian", "gluten-free"]
+    dislikes: List[str] = []
+    caloric_goal: int = None  # optional explicit calorie target
+    goal: str  # e.g. "lose_weight", "gain_muscle", "maintain"
+
+app = Flask(__name__)
+
+# --- Placeholder nutrition tool ---
+# In production, replace with a real tool that queries a nutrition DB or API.
+def nutrition_lookup_tool(query: str) -> Dict[str, Any]:
+    # Very small mock database
+    db = {
+        "chicken breast": {"cal": 165, "protein_g": 31, "carbs_g": 0, "fat_g": 3.6},
+        "brown rice (1 cup)": {"cal": 216, "protein_g": 5, "carbs_g": 44, "fat_g": 1.8},
+        "broccoli (1 cup)": {"cal": 55, "protein_g": 3.7, "carbs_g": 11.2, "fat_g": 0.6},
+        "oats (1 cup)": {"cal": 307, "protein_g": 11, "carbs_g": 55, "fat_g": 5.3},
+    }
+    return db.get(query.lower(), {"cal": 100, "protein_g": 5, "carbs_g": 10, "fat_g": 3})
+
+# --- Agent factory functions ---
+# Each agent is a thin wrapper around an LLM-driven Agent with a role prompt.
+
+def create_intake_agent():
+    prompt = (
+        "You are Intake Agent. Validate the user's form and compute a suggested daily calorie target. "
+        "Return JSON with keys: validated_form, suggested_calories."
+    )
+    return Agent(system_prompt=prompt)
+
+
+def create_nutrition_agent():
+    prompt = (
+        "You are Nutrition Agent. Given a list of ingredients or dishes, return macronutrients and calories. "
+        "You can call a local nutrition_lookup_tool for exact numbers."
+    )
+    # pass the tool as a Python-callable that the agent can call
+    return Agent(system_prompt=prompt, tools=[nutrition_lookup_tool])
+
+
+def create_planner_agent():
+    prompt = (
+        "You are Planner Agent. Using the validated form and nutrition info, create a 7-day meal plan (3 meals + 1 snack per day) that meets the daily calorie target and respects restrictions. "
+        "Return JSON with: meal_plan (dict day->meals), shopping_list (list), daily_totals (cal/protein/carbs/fat)."
+    )
+    return Agent(system_prompt=prompt)
+
+# --- Core orchestration using Strands Swarm ---
+async def run_meal_planner_swarm(form: PreferenceForm) -> Dict[str, Any]:
+    shared = SharedContext()
+
+    # create agents
+    intake = create_intake_agent()
+    nutrition = create_nutrition_agent()
+    planner = create_planner_agent()
+
+    # build swarm: agents are ordered but swarm can be configured for more advanced patterns
+    # The API has changed from agents=[...] to simply passing the agent list directly
+    swarm = Swarm([intake, nutrition, planner], shared_context=shared)
+
+    # put form into shared context
+    # Use model_dump() for Pydantic v2, or dict() for v1
+    try:
+        # For Pydantic v2
+        shared.set("user_form", form.model_dump())
+    except AttributeError:
+        # Fallback for Pydantic v1
+        shared.set("user_form", form.dict())
+
+    # Give a top-level goal for the swarm
+    goal = (
+        "Produce a 7-day meal plan and corresponding shopping list for the user. "
+        "Use the user_form from shared context and consult nutrition info as needed."
+    )
+
+    # Run the swarm. API may have changed in current Strands version
+    try:
+        # Try the new API first
+        result = await swarm.execute(goal)
+    except (TypeError, AttributeError):
+        try:
+            # Fall back to older API with goal as parameter
+            result = await swarm.run(goal=goal)
+        except (TypeError, AttributeError):
+            # Last resort: try with positional parameter
+            result = await swarm.run(goal)
+
+    # result may contain the planner output; if not, agents should write into shared context
+    planner_output = shared.get("planner_output") or result
+    return planner_output
+
+
+# --- Flask endpoint ---
+@app.route("/plan", methods=["POST"])
+def plan_meals():
+    # Parse JSON body
+    data = request.get_json()
+    form = PreferenceForm(**data)
+    # Run the Strands swarm to produce a plan
+    import asyncio
+    plan = asyncio.run(run_meal_planner_swarm(form))
+    return jsonify({"status": "ok", "plan": plan})
+
+
+# --- Standalone runner for local testing ---
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8000, debug=True)
