@@ -70,20 +70,11 @@ def get_user_input():
         dislikes.append(dislike)
     data["dislikes"] = dislikes
     
-    # Caloric Goal
-    while True:
-        try:
-            calorie_input = input("Enter caloric goal (default: 2000): ").strip()
-            data["caloric_goal"] = int(calorie_input) if calorie_input else 2000
-            break
-        except ValueError:
-            print("Please enter a valid number for calories.")
-    
     # Goal
     goals = ["lose", "maintain", "gain"]
     print(f"\nGoals: {', '.join(goals)}")
     while True:
-        goal = input("Enter goal (default: maintain): ").strip() or "maintain"
+        goal = input("Enter goal (lose/maintain/gain, default: maintain): ").strip() or "maintain"
         if goal in goals:
             data["goal"] = goal
             break
@@ -152,7 +143,6 @@ def main():
             "activity_level": "active",
             "dietary_restrictions": [],
             "dislikes": ["Brussels sprouts"],
-            "caloric_goal": 1500,
             "goal": "lose"
         }
         print("Using weight loss preset")
@@ -165,7 +155,6 @@ def main():
             "activity_level": "very_active",
             "dietary_restrictions": [],
             "dislikes": [],
-            "caloric_goal": 2800,
             "goal": "gain"
         }
         print("Using muscle gain preset")
@@ -178,7 +167,6 @@ def main():
             "activity_level": "moderate",
             "dietary_restrictions": [],
             "dislikes": [],
-            "caloric_goal": 2000,
             "goal": "maintain"
         }
         print("Using default preset")
