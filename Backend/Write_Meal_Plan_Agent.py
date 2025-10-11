@@ -1,16 +1,3 @@
-"""
-Simple Strands Agents multi-agent meal planner example
-- FastAPI endpoint receives user preferences & health goals
-- Spawns a small Strands Swarm with 3 agents:
-    1. intake_agent: validates and enriches user form
-    2. nutrition_agent: looks up nutrition facts (placeholder tool)
-    3. planner_agent: composes 7-day meal plan and shopping list
-
-Notes:
-- This is a minimal, runnable example. Adjust model/provider config per your environment.
-- Requires: `pip install strands-agents strands-agents-tools fastapi uvicorn pydantic`
-- The exact Strands API may change; treat this as a working template you can iterate on.
-"""
 from typing import List, Dict, Any
 import os
 from dotenv import load_dotenv
@@ -35,11 +22,11 @@ class PreferenceForm(BaseModel):
     age: int
     height_cm: int
     weight_kg: float
-    activity_level: str  # sedentary, light, moderate, active
+    activity_level: str  # sedentary, light, moderate, active, very_active
     dietary_restrictions: List[str] = []  # e.g. ["vegetarian", "gluten-free"]
     dislikes: List[str] = []
-    caloric_goal: int = None  # optional explicit calorie target
-    goal: str  # e.g. "lose_weight", "gain_muscle", "maintain"
+    caloric_goal: int = None  # optional - will be calculated if not provided
+    goal: str  # "lose", "maintain", "gain"
 
 app = Flask(__name__)
 
@@ -126,9 +113,8 @@ def plan_meals():
     # Parse JSON body
     data = request.get_json()
     form = PreferenceForm(**data)
-    # Run the Strands swarm to produce a plan
-    import asyncio
-    plan = asyncio.run(run_meal_planner_swarm(form))
+    # Create meal plan using simple agent
+    plan = create_meal_plan(form)
     return jsonify({"status": "ok", "plan": plan})
 
 
