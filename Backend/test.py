@@ -1,6 +1,6 @@
 import requests
 
-url = "http://127.0.0.1:8000/plan"
+url = "http://127.0.0.1:5000/createPlan"
 headers = {"Content-Type": "application/json"}
 data = {
     "name": "John",

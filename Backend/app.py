@@ -3,6 +3,7 @@ from backend_common.envdb import db, ensure_user_indexes
 from backend_common.security import verify_password, hash_password
 from datetime import datetime, timezone
 import re
+from strands import Agent
 
 app = Flask(__name__)
 ensure_user_indexes()
@@ -76,6 +77,75 @@ def register():
 @app.post("/createPlan")
 def createplan():
     data = request.get_json(force=True, silent=True) or {}
+    
+    # Validate required fields
+    required_fields = ["name", "age", "height_cm", "weight_kg", "activity_level", "dietary_restrictions", "dislikes", "goal"]
+    for field in required_fields:
+        if field not in data:
+            return jsonify({"ok": False, "msg": f"Missing required field: {field}"}), 400
+    
+    # Validate data types and values
+    try:
+        name = str(data["name"]).strip()
+        age = int(data["age"])
+        height_cm = float(data["height_cm"])
+        weight_kg = float(data["weight_kg"])
+        activity_level = str(data["activity_level"]).strip().lower()
+        dietary_restrictions = data["dietary_restrictions"] if isinstance(data["dietary_restrictions"], list) else []
+        dislikes = data["dislikes"] if isinstance(data["dislikes"], list) else []
+        goal = str(data["goal"]).strip().lower()
+        
+        # Validate ranges and values
+        if not name:
+            return jsonify({"ok": False, "msg": "Name cannot be empty"}), 400
+        if not (1 <= age <= 120):
+            return jsonify({"ok": False, "msg": "Age must be between 1 and 120"}), 400
+        if not (50 <= height_cm <= 300):
+            return jsonify({"ok": False, "msg": "Height must be between 50 and 300 cm"}), 400
+        if not (20 <= weight_kg <= 500):
+            return jsonify({"ok": False, "msg": "Weight must be between 20 and 500 kg"}), 400
+        if activity_level not in ["light", "moderate", "heavy", "very heavy"]:
+            return jsonify({"ok": False, "msg": "Activity level must be one of: light, moderate, heavy, very heavy"}), 400
+        if goal not in ["maintain", "lose", "gain"]:
+            return jsonify({"ok": False, "msg": "Goal must be one of: maintain, lose, gain"}), 400
+            
+    except (ValueError, TypeError):
+        return jsonify({"ok": False, "msg": "Invalid data types in request"}), 400
+    
+    # Create personalized prompt for the agent
+    restrictions_text = ", ".join(dietary_restrictions) if dietary_restrictions else "none"
+    dislikes_text = ", ".join(dislikes) if dislikes else "none"
+    
+    prompt = f"""Create a personalized meal plan for a week for {name} with the following details:
+    - Age: {age} years old
+    - Height: {height_cm} cm
+    - Weight: {weight_kg} kg
+    - Activity level: {activity_level}
+    - Dietary restrictions: {restrictions_text}
+    - Food dislikes: {dislikes_text}
+    - Goal: {goal} weight
+    
+    Please provide a detailed 7-day meal plan with breakfast, lunch, dinner, and snacks that meets their nutritional needs and preferences."""
+    
+    try:
+        agent = Agent()
+        meal_plan = agent(prompt)
+        
+        return jsonify({
+            "ok": True, 
+            "meal_plan": meal_plan,
+            "user_info": {
+                "name": name,
+                "age": age,
+                "height_cm": height_cm,
+                "weight_kg": weight_kg,
+                "activity_level": activity_level,
+                "goal": goal
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({"ok": False, "msg": "Failed to generate meal plan"}), 500
 
 if __name__ == "__main__":
     app.run(debug=True)
