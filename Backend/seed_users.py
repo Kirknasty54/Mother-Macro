@@ -82,7 +82,8 @@ def fixed_test_accounts():
             "createdAt": now,
             "updatedAt": now,
             "profile": {"firstName": username.split('user')[0] or "Test", "lastName": "Account"},
-            "meta": {"emailVerified": False, "loginDisabled": False, "provider": "local"}
+            "meta": {"emailVerified": False, "loginDisabled": False, "provider": "local"},
+            "meals": ""
         })
         creds.append((email, username, pw))
     return docs, creds
