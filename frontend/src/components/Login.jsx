@@ -23,7 +23,11 @@ const Login = () => {
       })
         .from(".mm-header p", { opacity: 0, y: 15, duration: 0.5 }, "-=0.3")
         .from(cardRef.current, { opacity: 0, y: 24, duration: 0.5 }, "-=0.2")
-        .from(".mm-field", { opacity: 0, y: 12, duration: 0.35, stagger: 0.08 }, "-=0.25")
+        .from(
+          ".mm-field",
+          { opacity: 0, y: 12, duration: 0.35, stagger: 0.08 },
+          "-=0.25"
+        )
         .from(".mm-submit", { opacity: 0, y: 10, duration: 0.3 }, "-=0.2");
     }, containerRef);
     return () => ctx.revert();
@@ -51,7 +55,7 @@ const Login = () => {
 
       // give it a gradient background used as shimmer
       h2.style.backgroundImage =
-        "linear-gradient(120deg, var(--color-sage-400) 0%, var(--color-beige-400) 50%, var(--color-sage-600) 100%)";
+        "linear-gradient(120deg, var(--color-sage-100) 0%, var(--color-beige-50) 50%, var(--color-sage-300) 100%)";
       h2.style.backgroundSize = "200% 100%";
       h2.style.backgroundClip = "text";
       h2.style.webkitBackgroundClip = "text";
@@ -102,9 +106,15 @@ const Login = () => {
     setFormData((p) => ({ ...p, [e.target.name]: e.target.value }));
 
   const handleFocus = useCallback((e) => {
-    gsap.to(e.target, { boxShadow: "0 0 10px 2px rgba(134,151,95,0.45)", duration: 0.2 });
+    gsap.to(e.target, {
+      boxShadow: "0 0 10px 2px rgba(134,151,95,0.45)",
+      duration: 0.2,
+    });
   }, []);
-  const handleBlur = useCallback((e) => gsap.to(e.target, { boxShadow: "none", duration: 0.2 }), []);
+  const handleBlur = useCallback(
+    (e) => gsap.to(e.target, { boxShadow: "none", duration: 0.2 }),
+    []
+  );
 
   const shakeCard = () =>
     gsap.fromTo(
@@ -146,11 +156,14 @@ const Login = () => {
         <div className="max-w-md w-full space-y-8">
           {/* Header with shimmer */}
           <div className="text-center mm-header">
-            <h2 className="mt-6 text-4xl font-bold text-sage-800 drop-shadow-sm">Mother Macro</h2>
-            <p className="mt-2 text-lg text-sage-700">
-              Create personalized meal plans that will help you meet your macro goals and taste like
-              they were cooked by your mother. Mother Macro makes you meals that your mother would
-              if she still loved you.
+            <h2 className="mt-6 text-4xl font-bold text-sage-50 drop-shadow-[0_0_12px_rgba(134,151,95,0.4)]">
+              Mother Macro
+            </h2>{" "}
+            <p className="mt-2 text-lg text-sage-900 leading-relaxed">
+              {" "}
+              Create personalized meal plans that will help you meet your macro
+              goals and taste like they were cooked by your mother. Mother Macro
+              makes you meals that your mother would if she still loved you.
             </p>
           </div>
 
@@ -161,7 +174,10 @@ const Login = () => {
               className="bg-beige-50/95 backdrop-blur-md rounded-xl shadow-xl p-8 space-y-6 border border-sage-200"
             >
               <div className="mm-field">
-                <label htmlFor="username" className="block text-sm font-medium text-sage-700 mb-2">
+                <label
+                  htmlFor="username"
+                  className="block text-sm font-medium text-sage-700 mb-2"
+                >
                   Username
                 </label>
                 <input
@@ -179,7 +195,10 @@ const Login = () => {
               </div>
 
               <div className="mm-field">
-                <label htmlFor="password" className="block text-sm font-medium text-sage-700 mb-2">
+                <label
+                  htmlFor="password"
+                  className="block text-sm font-medium text-sage-700 mb-2"
+                >
                   Password
                 </label>
                 <input
@@ -209,7 +228,10 @@ const Login = () => {
           <div className="text-center">
             <p className="text-sm text-sage-700/90">
               Don't have an account?{" "}
-              <a href="#" className="font-medium text-sage-600 hover:text-sage-500 transition-colors">
+              <a
+                href="#"
+                className="font-medium text-sage-600 hover:text-sage-500 transition-colors"
+              >
                 Sign up here
               </a>
             </p>
