@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import ChatWidget from "./ChatWidget";
 
 export default function MealPlan() {
     const { state } = useLocation();
@@ -102,6 +103,7 @@ export default function MealPlan() {
                     <p className="mt-6 text-sage-700">No meals returned. Try updating your preferences and generate again.</p>
                 )}
             </div>
+            <ChatWidget mealplan={mealplan} />
         </div>
     );
 }

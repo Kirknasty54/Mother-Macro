@@ -1,4 +1,6 @@
 # app.py
+import json
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from datetime import datetime, timezone
@@ -139,6 +141,169 @@ def require_auth(fn):
 @require_auth
 def me():
     return jsonify({"ok": True, "claims": getattr(request, "user", {})})
+import json  # ensure this is imported (top of file)
+
+# ---- Strands agent helpers (chat-only) ----
+def _loads_strict_json(txt: str) -> dict:
+    s = str(txt).strip()
+    if s.startswith("```"):
+        s = s.strip("`")
+        nl = s.find("\n")
+        if nl > -1 and "{" not in s[:nl]:
+            s = s[nl+1:].strip()
+    return json.loads(s)
+
+def _mk_agent(model_id: str):
+    from strands.agent import Agent
+    for kwargs in ({"model": model_id},
+                   {"model_id": model_id},
+                   {"model": model_id, "provider": "bedrock"},
+                   {"model_id": model_id, "provider": "bedrock"}):
+        try:
+            return Agent(**kwargs)
+        except TypeError:
+            continue
+    return Agent()
+
+def _agent_invoke(agent, system_prompt: str, user_prompt: str, model_id: str):
+    try:
+        return agent(user_prompt, system_prompt=system_prompt)
+    except TypeError:
+        pass
+    if hasattr(agent, "run"):
+        try:
+            return agent.run(user_prompt, system_prompt=system_prompt)
+        except TypeError:
+            pass
+    try:
+        return agent(user_prompt, system_prompt=system_prompt, model=model_id)
+    except TypeError:
+        pass
+    if hasattr(agent, "run"):
+        return agent.run(user_prompt, system_prompt=system_prompt, model=model_id)
+    raise RuntimeError("Strands Agent invocation not supported by this version")
+
+def _call_strands_chat(messages: list, mealplan: dict) -> str:
+    model_id = os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-20250514-v1:0")
+
+    def brief_mealplan(mp: dict) -> str:
+        try:
+            days = mp.get("days", [])
+            if not isinstance(days, list) or not days:
+                return "No mealplan."
+            lines = []
+            for d in days[:7]:
+                if not isinstance(d, dict): continue
+                meals = d.get("meals", [])
+                names = []
+                for m in meals[:4]:
+                    if isinstance(m, dict) and isinstance(m.get("name"), str):
+                        names.append(m["name"])
+                lines.append(f"Day {d.get('day','?')}: {', '.join(names)}")
+            return "\n".join(lines) or "No mealplan."
+        except Exception:
+            return "No mealplan."
+
+    system = (
+        "You are a helpful nutrition coach chatbot. "
+        "Answer clearly and concisely. If asked for a grocery list, summarize common ingredients. "
+        "If asked for swaps, offer 2–3 options with rationale. "
+        "If asked for macros, compute/explain using provided info. "
+        "Return PLAIN TEXT (no JSON) unless explicitly asked for JSON."
+    )
+
+    last_user = ""
+    for m in reversed(messages or []):
+        if isinstance(m, dict) and (m.get("role") or "").lower() == "user":
+            last_user = str(m.get("content", "")).strip()
+            if last_user:
+                break
+
+    user = (
+        f"Mealplan (short):\n{brief_mealplan(mealplan)}\n\n"
+        f"User says:\n{last_user or '(no message)'}\n\n"
+        "Respond now."
+    )
+
+    agent = _mk_agent(model_id)
+    raw = _agent_invoke(agent, system_prompt=system, user_prompt=user, model_id=model_id)
+    try:
+        obj = _loads_strict_json(raw)
+        for k in ("reply", "output", "message", "text"):
+            v = obj.get(k)
+            if isinstance(v, str) and v.strip():
+                return v.strip()
+        return json.dumps(obj)[:2000]
+    except Exception:
+        return str(raw).strip()
+
+
+# -------------------- Chat route --------------------
+@app.route("/chat", methods=["POST"])
+@require_auth
+def chat():
+    """
+    Accepts: { messages: [{role, content}] | string, mealplan: {...} | string }
+    Returns: { ok: true, reply: string, debug?: {...} }
+    """
+    try:
+        # ----- super defensive parsing -----
+        def as_dict(x):
+            if isinstance(x, dict): return x
+            if isinstance(x, str):
+                try:
+                    j = json.loads(x);
+                    return j if isinstance(j, dict) else {}
+                except Exception:
+                    return {}
+            return {}
+
+        def as_list(x):
+            if isinstance(x, list): return x
+            if isinstance(x, str):
+                try:
+                    j = json.loads(x);
+                    return j if isinstance(j, list) else []
+                except Exception:
+                    return []
+            return []
+
+        data = request.get_json(silent=True)
+        if isinstance(data, str):
+            try: data = json.loads(data)
+            except Exception: data = {}
+        if not isinstance(data, dict): data = {}
+
+        msgs_in  = as_list(data.get("messages"))
+        messages = []
+        for m in msgs_in:
+            if isinstance(m, dict):
+                role = str(m.get("role", "")).strip().lower()
+                content = m.get("content", "")
+                if isinstance(content, (int, float)): content = str(content)
+                if isinstance(content, str):
+                    messages.append({"role": role, "content": content})
+            elif isinstance(m, str) and m.strip():
+                messages.append({"role": "user", "content": m.strip()})
+
+        mealplan = as_dict(data.get("mealplan"))
+
+        # ----- Strands Agent first (toggle with USE_STRANDS_CHAT) -----
+        if os.getenv("USE_STRANDS_CHAT", "1") not in ("0", "false", "False"):
+            try:
+                agent_reply = _call_strands_chat(messages, mealplan)
+                if isinstance(agent_reply, str) and agent_reply.strip():
+                    return jsonify({"ok": True, "reply": agent_reply, "debug": {"source": "strands"}})
+            except Exception as e:
+                print("Strands chat failed:", e)
+
+        # ----- fallback simple reply so UI never breaks -----
+        reply = "I can help with your meal plan chat. Ask for grocery lists, swaps, or macros per meal."
+        return jsonify({"ok": True, "reply": reply, "debug": {"source": "fallback"}})
+
+    except Exception as e:
+        return jsonify({"ok": False, "msg": f"chat error: {str(e)}"}), 500
+
 
 if __name__ == "__main__":
     app.run(debug=True)

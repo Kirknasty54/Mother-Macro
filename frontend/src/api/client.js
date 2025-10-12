@@ -11,3 +11,8 @@ export const prefsApi = {
     save: (p) => axiosClient.put("/preferences", p),
     generate: () => axiosClient.post("/mealplans/generate"),
 };
+
+export const chatApi = {
+    send: (messages, mealplan = null) =>
+        axiosClient.post("/chat", { messages, mealplan }),
+};
