@@ -4,7 +4,8 @@ import Login from './components/Login'
 import CaloriePreferences from './components/CaloriePreferences'
 import './App.css'
 import Register from "./components/Register.jsx";
-import MealPlan from "./components/MealPlan.jsx"; // ⬅️ add
+import MealPlan from "./components/MealPlan.jsx";
+import Generating from "./components/Generating.jsx"; // ⬅️ add
 
 function App() {
     return (
@@ -23,6 +24,7 @@ function App() {
 
                     {/* Meal plan */}
                     <Route path="/mealplan" element={<MealPlan />} />
+                    <Route path="/generating" element={<Generating/>}/>
                 </Routes>
             </div>
         </Router>

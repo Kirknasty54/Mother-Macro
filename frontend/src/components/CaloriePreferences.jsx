@@ -65,38 +65,45 @@ const CaloriePreferences = () => {
                         allergens: Array.isArray(srv.exclude_ingredients) ? srv.exclude_ingredients : [],
                     }));
                 }
-            } catch { /* ignore empty */ }
+            } catch {
+                /* ignore */
+            }
         })();
     }, []);
+
+    // Build payload in the exact shape the backend expects
+    const buildPayload = () => ({
+        calorie_target: Number(preferences.dailyCalorieGoal) || undefined,
+        diet: preferences.dietType || "balanced",
+        exclude_ingredients: preferences.allergens,
+        // Add more later if/when your UI collects them:
+        // protein_g_target, carb_g_target, fat_g_target, meals_per_day, max_prep_minutes, etc.
+    });
 
     const saveToServer = async () => {
         setSaving("Saving…");
         try {
-            const payload = {
-                calorie_target: Number(preferences.dailyCalorieGoal) || undefined,
-                diet: preferences.dietType || "balanced",
-                exclude_ingredients: preferences.allergens,
-                // you can add more fields later (protein_g_target, etc.)
-            };
+            const payload = buildPayload();
+            console.log("[CaloriePreferences] save payload →", payload);
             await prefsApi.save(payload);
             setSaving("Saved.");
             gsap.to(cardRef.current, { scale: 1.01, duration: 0.15, yoyo: true, repeat: 1 });
         } catch (e) {
-            setSaving(e.message);
+            setSaving(e.message || "Save failed");
             gsap.fromTo(cardRef.current, { x: -8 }, { x: 8, duration: 0.06, repeat: 7, yoyo: true, clearProps: "x" });
+            throw e;
         }
     };
 
+    // NEW: hop to the loading route; it will call /mealplans/generate and then push to /mealplan
     const generatePlan = async () => {
         setGenerating("Generating…");
         try {
             await saveToServer(); // ensure latest prefs are stored
-            const r = await prefsApi.generate();
-            setGenerating("Done!");
-            // navigate to meal plan page
-            navigate("/mealplan", { state: { mealplan: r.mealplan } });
+            setGenerating(""); // clear text before navigating
+            navigate("/generating", { state: { from: "prefs" } });
         } catch (e) {
-            setGenerating(e.message);
+            setGenerating(e.message || "Failed to start generation");
             gsap.fromTo(cardRef.current, { x: -8 }, { x: 8, duration: 0.06, repeat: 7, yoyo: true, clearProps: "x" });
         }
     };
@@ -270,16 +277,26 @@ const CaloriePreferences = () => {
                         </div>
 
                         <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                            <button type="button" onClick={saveToServer}
-                                    className="cp-submit flex-1 bg-sage-600 hover:bg-sage-700 text-white font-medium py-3 px-6 rounded-lg transition-colors focus:ring-2 focus:ring-sage-500 focus:ring-offset-2">
+                            <button
+                                type="button"
+                                onClick={saveToServer}
+                                className="cp-submit flex-1 bg-sage-600 hover:bg-sage-700 text-white font-medium py-3 px-6 rounded-lg transition-colors focus:ring-2 focus:ring-sage-500 focus:ring-offset-2"
+                                disabled={!!generating}
+                            >
                                 Save Preferences
                             </button>
-                            <button type="button" onClick={generatePlan}
-                                    className="flex-1 bg-sage-700 hover:bg-sage-800 text-white font-medium py-3 px-6 rounded-lg transition-colors focus:ring-2 focus:ring-sage-600 focus:ring-offset-2">
+                            <button
+                                type="button"
+                                onClick={generatePlan}
+                                className="flex-1 bg-sage-700 hover:bg-sage-800 text-white font-medium py-3 px-6 rounded-lg transition-colors focus:ring-2 focus:ring-sage-600 focus:ring-offset-2"
+                                disabled={!!generating}
+                            >
                                 Generate Meal Plan
                             </button>
                         </div>
-                        {(saving || generating) && <p className="text-sm text-sage-800">{saving || generating}</p>}
+                        {(saving || generating) && (
+                            <p className="text-sm text-sage-800">{saving || generating}</p>
+                        )}
                     </form>
 
                     <div className="mt-8 text-center">
