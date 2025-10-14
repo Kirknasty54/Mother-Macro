@@ -3,6 +3,7 @@ import React, { useRef, useState, useLayoutEffect, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { gsap } from "gsap";
 import { authApi } from "../api/client.js"; // ⬅️ add
+import motherMacroImage from '../assets/mother_macro_logo.png';
 
 const Login = () => {
     const navigate = useNavigate();
@@ -116,8 +117,9 @@ const Login = () => {
                 <div className="max-w-md w-full space-y-8">
                     {/* Header with shimmer */}
                     <div className="text-center mm-header">
+                        <img src={motherMacroImage}  className={"rounded-lg mx-auto w-1/2 max-w-[200px]"} alt="logo"/>
                         <h2 className="mt-6 text-4xl font-bold text-sage-50 drop-shadow-[0_0_12px_rgba(134,151,95,0.4)]">Mother Macro</h2>
-                        <p className="mt-2 text-lg text-sage-900 leading-relaxed">
+                        <p className="mt-2 text-lg text-sage-900 leading-relaxed font-extrabold">
                             Create personalized meal plans that will help you meet your macro goals and taste like they were cooked by your mother.
                         </p>
                     </div>
@@ -154,7 +156,7 @@ const Login = () => {
 
                     {/* Footer */}
                     <div className="text-center">
-                        <p className="text-sm text-sage-700/90">
+                        <p className="text-m text-sage-700/90 font-extrabold">
                             Don't have an account?{" "}
                             <Link to="/register" className="font-medium text-sage-600 hover:text-sage-500 transition-colors">Sign up here</Link>
                         </p>

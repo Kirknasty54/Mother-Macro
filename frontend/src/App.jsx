@@ -10,7 +10,7 @@ import Generating from "./components/Generating.jsx"; // ⬅️ add
 function App() {
     return (
         <Router>
-            <div className="App">
+            <div className={"antialiased"}>
                 <Routes>
                     {/* Redirect root path to login */}
                     <Route path="/" element={<Navigate to="/login" replace />} />

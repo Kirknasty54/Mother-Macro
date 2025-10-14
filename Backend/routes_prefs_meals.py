@@ -37,27 +37,54 @@ def _loads_strict_json(txt: str) -> dict:
 
 # ---------- VERSION-TOLERANT STRANDS HELPERS ----------
 
-def _mk_agent(model_id: str):
+
+def _mk_agent(model_id: str, strands=None):
     """
-    Create a Strands Agent, compatible with multiple versions:
-      - Agent(model=...)
-      - Agent(model_id=...)
-      - Agent(model=..., provider='bedrock')
-      - Agent(model_id=..., provider='bedrock')
-      - Agent()
+    Create a Strands Agent that uses Bedrock in a compatible way.
     """
+    import os
+    import boto3
     from strands.agent import Agent
+
+    # Force the region
+    region = os.getenv("AWS_REGION", "us-east-1")
+    os.environ['AWS_DEFAULT_REGION'] = region
+
+    # Try different initialization approaches
+    # Priority: Use explicit boto3 client configuration
+    try:
+        # Create boto3 bedrock-runtime client explicitly
+        bedrock_client = boto3.client(
+            'bedrock-runtime',
+            region_name=region
+        )
+
+        # Try to pass the client to Strands if it accepts it
+        return Agent(
+            model=model_id,
+            provider="bedrock",
+            client=bedrock_client  # Some versions accept this
+        )
+    except (TypeError, Exception) as e:
+        print(f"Approach 1 failed: {e}")
+
+    # Fallback approaches
     for kwargs in (
-        {"model": model_id},
-        {"model_id": model_id},
-        {"model": model_id, "provider": "bedrock"},
-        {"model_id": model_id, "provider": "bedrock"},
+            {"model": model_id, "provider": "bedrock"},
+            {"model_id": model_id, "provider": "bedrock"},
+            {"model": model_id},
+            {"model_id": model_id},
     ):
         try:
-            return Agent(**kwargs)
+            agent = Agent(**kwargs)
+            # Force region on the agent if possible
+            if hasattr(agent, 'client') and hasattr(agent.client, 'meta'):
+                agent.client.meta.region_name = region
+            return agent
         except TypeError:
             continue
-    return Agent()  # last resort
+
+    return Agent()  # last resortt
 
 def _agent_invoke(agent, system_prompt: str, user_prompt: str, model_id: str):
     """
@@ -85,15 +112,22 @@ def _agent_invoke(agent, system_prompt: str, user_prompt: str, model_id: str):
         return agent.run(user_prompt, system_prompt=system_prompt, model=model_id)
     raise RuntimeError("Strands Agent invocation method not supported by this version")
 
+
 def _call_strands_mealplan(prefs: dict) -> dict:
     """Use Strands against Bedrock, tolerant to API differences."""
-    model_id = os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-20250514-v1:0")
+    model_id = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-sonnet-20240229-v1:0")
+
+    # DEBUG: Print what we're actually using
+    print(f"DEBUG: Using model_id: {model_id}")
+    print(f"DEBUG: AWS_REGION: {os.getenv('AWS_REGION')}")
+    print(f"DEBUG: AWS_ACCESS_KEY_ID: {os.getenv('AWS_ACCESS_KEY_ID', 'NOT SET')[:20]}...")
 
     calorie_target = int(prefs.get("calorie_target") or 2200)
-    meals_per_day  = int(prefs.get("meals_per_day") or 3)
-    diet           = prefs.get("diet") or "balanced"
-    excludes       = ", ".join(map(str, prefs.get("exclude_ingredients", []))) or "none"
+    meals_per_day = int(prefs.get("meals_per_day") or 3)
+    diet = prefs.get("diet") or "balanced"
+    excludes = ", ".join(map(str, prefs.get("exclude_ingredients", []))) or "none"
 
+    # ... rest of the function stays the same ...
     system = (
         "You are a nutrition planner. Respond with STRICT JSON ONLY. "
         "No markdown, no code fences, no explanations."

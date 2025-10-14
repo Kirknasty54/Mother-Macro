@@ -237,7 +237,6 @@ def _call_strands_chat(messages: list, mealplan: dict) -> str:
     except Exception:
         return str(raw).strip()
 
-
 # -------------------- Chat route --------------------
 @app.route("/chat", methods=["POST"])
 @require_auth
@@ -303,7 +302,6 @@ def chat():
 
     except Exception as e:
         return jsonify({"ok": False, "msg": f"chat error: {str(e)}"}), 500
-
 
 if __name__ == "__main__":
     app.run(debug=True)

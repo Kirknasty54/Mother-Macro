@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import ChatWidget from "./ChatWidget";
 
@@ -6,6 +6,7 @@ export default function MealPlan() {
     const { state } = useLocation();
     const navigate = useNavigate();
     const mealplan = state?.mealplan;
+    const [uploadedImages, setUploadedImages] = useState({});
 
     useEffect(() => {
         if (!mealplan) navigate("/preferences", { replace: true });
@@ -24,6 +25,20 @@ export default function MealPlan() {
         }
         return { calories: c, protein_g: p, carbs_g: cb, fat_g: f };
     }, [mealplan]);
+
+    const handleImageUpload = (dayIndex, mealIndex, event) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setUploadedImages(prev => ({
+                    ...prev,
+                    [`${dayIndex}-${mealIndex}`]: reader.result
+                }));
+            };
+            reader.readAsDataURL(file);
+        }
+    };
 
     if (!mealplan) return null;
 
@@ -83,17 +98,39 @@ export default function MealPlan() {
                         <div key={i} className="bg-white/90 backdrop-blur-sm rounded-xl shadow border border-sage-200 p-5">
                             <h2 className="text-xl font-semibold text-sage-700 mb-3">Day {d.day ?? i + 1}</h2>
                             <div className="space-y-3">
-                                {(d.meals || []).map((m, j) => (
-                                    <div key={j} className="border border-sage-100 rounded-lg p-3">
-                                        <div className="flex items-center justify-between">
-                                            <h3 className="font-medium text-sage-800">{m.name}</h3>
-                                            <span className="text-sm text-sage-700">
-                        {m.calories ?? "—"} kcal · {m.protein_g ?? "—"}P / {m.carbs_g ?? "—"}C / {m.fat_g ?? "—"}F
-                      </span>
+                                {(d.meals || []).map((m, j) => {
+                                    const imageKey = `${i}-${j}`;
+                                    const uploadedImage = uploadedImages[imageKey];
+                                    return (
+                                        <div key={j} className="border border-sage-100 rounded-lg p-3">
+                                            <div className="flex items-center justify-between">
+                                                <h3 className="font-medium text-sage-800">{m.name}</h3>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-sm text-sage-700">
+                                                        {m.calories ?? "—"} kcal · {m.protein_g ?? "—"}P / {m.carbs_g ?? "—"}C / {m.fat_g ?? "—"}F
+                                                    </span>
+                                                    <label className="cursor-pointer">
+                                                        <input
+                                                            type="file"
+                                                            accept="image/*"
+                                                            className="hidden"
+                                                            onChange={(e) => handleImageUpload(i, j, e)}
+                                                        />
+                                                        <div className="bg-sage-100 hover:bg-sage-200 text-sage-700 px-3 py-1 rounded text-sm flex items-center gap-1">
+                                                            📷 Upload
+                                                        </div>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            {uploadedImage && (
+                                                <div className="mt-2">
+                                                    <img src={uploadedImage} alt="Uploaded meal" className="w-32 h-32 object-cover rounded-lg" />
+                                                </div>
+                                            )}
+                                            {m.recipe_text && <p className="text-sm text-sage-700 mt-2 whitespace-pre-wrap">{m.recipe_text}</p>}
                                         </div>
-                                        {m.recipe_text && <p className="text-sm text-sage-700 mt-2 whitespace-pre-wrap">{m.recipe_text}</p>}
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </div>
                     ))}
