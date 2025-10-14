@@ -13,7 +13,7 @@ Our goal is to help users save as much money as possible on their health insuran
 - [ ] Logging food functionality 
 - [ ] Add in user's insurance information to MongoDB
 - [ ] Add in user recognition for users to snap pictures of made suggested meal plan to gain 'points' towards saving money on health insurance 
-- [ ] Add in activity tracker for users to also log exercise and activity in order to also gain points towards saving money, possibly through linking strava activity via their apis
+- [ ] Add in activity tracker for users to also log exercise and activity in order to also gain points towards saving money, possibly through linking Strava activity via their apis
 
 ## Done: 
 - [X] Create MongoDB
@@ -23,3 +23,4 @@ Our goal is to help users save as much money as possible on their health insuran
 - [X] Implement basic login check
 - [X] Create React Vite Project 
 - [X] Get AWS Agent Thing Setup 
+- [X] Swap AWS credential from workshop to personal strands_agent credentials
