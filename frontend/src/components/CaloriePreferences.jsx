@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { gsap } from "gsap";
 import { prefsApi } from "../api/client.js";
 import Avatar  from './Avatar.jsx';
+import LogoutButton from "./LogoutButton.jsx";
 
 const CaloriePreferences = () => {
     const rootRef = useRef(null);
@@ -295,6 +296,9 @@ const CaloriePreferences = () => {
                             >
                                 Generate Meal Plan
                             </button>
+                        </div>
+                        <div className="flex justify-center pt-4">
+                            <LogoutButton className="px-6 py-3 font-medium" />
                         </div>
                         {(saving || generating) && (
                             <p className="text-sm text-sage-800">{saving || generating}</p>

@@ -1,10 +1,11 @@
 import React, { useRef, useState, useLayoutEffect, useCallback }  from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { gsap } from "gsap";
-import { authApi } from "../api/client.js"; // ⬅️ add
+import { useAuth } from "../context/AuthProvider.jsx";
 
 const Register = () => {
     const navigate = useNavigate();
+    const { register } = useAuth();
     const containerRef = useRef(null);
     const cardRef = useRef(null);
     const [msg, setMsg] = useState("");
@@ -82,10 +83,7 @@ const Register = () => {
         if (!email || !username || !password) return shakeCard();
         setMsg("Creating your account…");
         try {
-            const res = await authApi.register(email.trim().toLowerCase(), username.trim(), password);
-            localStorage.setItem("access_token", res.access_token || "");
-            localStorage.setItem("refresh_token", res.refresh_token || "");
-            localStorage.setItem("user", JSON.stringify(res.user || {}));
+            await register(email.trim().toLowerCase(), username.trim(), password);
             gsap.to(containerRef.current, {
                 opacity: 0, y: -12, filter: "blur(6px)", duration: 0.4, ease: "power2.inOut",
                 onComplete: () => navigate("/preferences"),
