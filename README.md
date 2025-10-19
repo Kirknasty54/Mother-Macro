@@ -31,3 +31,4 @@ Our goal is to help users save as much money as possible on their health insuran
 - [X] Swap AWS credential from workshop to personal strands_agent credentials
 - [X] Adding in avatar's for users 
 - [X] Add in route protection, logged in users can't access login/register pages, and non logged in users can't access pages like preferences, mealplans, generating, etc.
+- [X] Add Logout functionality

@@ -193,8 +193,8 @@ const CaloriePreferences = () => {
             </div>
 
             <div ref={rootRef} className="bg-[length:260%_260%] bg-gradient-to-br from-sage-300 via-sage-500 to-beige-300 py-8">
+                <div className="fixed top-4 right-4 z-50"><Avatar /></div>
                 <div className="relative max-w-4xl mx-auto px-4">
-                    <div className="absolute top-2 right-2"><Avatar /></div>
                     <div className="text-center mb-8 cp-header">
                         <h1 className="text-4xl font-bold text-sage-50 drop-shadow-[0_0_12px_rgba(134,151,95,0.4)] mb-2">
                             Set Your Health Preferences

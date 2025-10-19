@@ -1,10 +1,16 @@
+import { useAuth } from "../context/AuthProvider.jsx";
+import generic from "../assets/generic_pfp.png";
+
 export default function Avatar() {
+    const { user } = useAuth();
+    const username = user?.username || "Guest";
+
     return (
-        <div className={"relative w-10 h-10 overflow-hidden bg-gray-100 rounded-full dark:bg-gray-600"}>
-            <svg className={"absolute w-12 h-12 text-gray-400 -left-1"} fill={"currentColor"} viewBox={"0 0 20 20"} xmlns={"http://www.w3.org/2000/svg"}>
-                <path fillRule={"evenodd"} d={"M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"} clipRule={"evenodd"}>
-                </path>
-            </svg>
+        <div className="flex items-center gap-2 max-w-[200px]">
+            <img className="w-10 h-10 rounded-full flex-shrink-0" src={generic} alt="Avatar" />
+            <div className="font-medium text-sage-800 truncate">
+                {username}
+            </div>
         </div>
-    )
+    );
 }
