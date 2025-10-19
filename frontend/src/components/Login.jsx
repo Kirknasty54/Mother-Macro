@@ -4,6 +4,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { gsap } from "gsap";
 import { authApi } from "../api/client.js"; // ⬅️ add
 import motherMacroImage from '../assets/mother_macro_logo.png';
+import LogoutButton from "./LogoutButton.jsx";
 
 const Login = () => {
     const navigate = useNavigate();

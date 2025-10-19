@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import ChatWidget from "./ChatWidget";
+import Avatar from "./Avatar.jsx";
 
 export default function MealPlan() {
     const { state } = useLocation();
@@ -69,6 +70,7 @@ export default function MealPlan() {
                         >
                             Edit Preferences
                         </button>
+                        <Avatar />
                     </div>
                 </div>
 
