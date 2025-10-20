@@ -56,9 +56,6 @@ const CaloriePreferences = () => {
     // load existing server prefs on mount
     React.useEffect(() => {
         (async () => {
-            // Only fetch if we have an access token
-            if (!localStorage.getItem("access_token")) return;
-
             try {
                 const r = await prefsApi.get();
                 if (r?.preferences) {
