@@ -2,11 +2,12 @@
 import React, { useRef, useState, useLayoutEffect, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { gsap } from "gsap";
-import { authApi } from "../api/client.js"; // ⬅️ add
+import { useAuth } from "../context/AuthProvider.jsx";
 import motherMacroImage from '../assets/mother_macro_logo.png';
 
 const Login = () => {
     const navigate = useNavigate();
+    const { login } = useAuth();
     const containerRef = useRef(null);
     const cardRef = useRef(null);
 
@@ -88,11 +89,7 @@ const Login = () => {
         if (!email || !password) return shakeCard();
         setMsg("Signing in…");
         try {
-            const res = await authApi.login(email.trim().toLowerCase(), password);
-            // store tokens/user
-            localStorage.setItem("access_token", res.access_token || "");
-            localStorage.setItem("refresh_token", res.refresh_token || "");
-            localStorage.setItem("user", JSON.stringify(res.user || {}));
+            await login(email.trim().toLowerCase(), password);
             // animate -> navigate
             gsap.to(containerRef.current, {
                 opacity: 0, y: -12, filter: "blur(6px)", duration: 0.4, ease: "power2.inOut",

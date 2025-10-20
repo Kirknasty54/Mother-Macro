@@ -1,16 +1,43 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import ChatWidget from "./ChatWidget";
+import Avatar from "./Avatar.jsx";
+import LogoutButton from "./LogoutButton.jsx";
+import { mealplanApi } from "../api/client.js";
 
 export default function MealPlan() {
     const { state } = useLocation();
     const navigate = useNavigate();
-    const mealplan = state?.mealplan;
+    const [mealplan, setMealplan] = useState(state?.mealplan || null);
     const [uploadedImages, setUploadedImages] = useState({});
+    const [loading, setLoading] = useState(!state?.mealplan);
 
     useEffect(() => {
-        if (!mealplan) navigate("/preferences", { replace: true });
-    }, [mealplan, navigate]);
+        // If we have a meal plan from state, we're good
+        if (state?.mealplan) {
+            setMealplan(state.mealplan);
+            setLoading(false);
+            return;
+        }
+
+        // Otherwise, try to fetch the saved meal plan
+        (async () => {
+            try {
+                const response = await mealplanApi.get();
+                if (response?.mealplan) {
+                    setMealplan(response.mealplan);
+                } else {
+                    // No saved meal plan, redirect to preferences
+                    navigate("/preferences", { replace: true });
+                }
+            } catch (error) {
+                console.error("Failed to load meal plan:", error);
+                navigate("/preferences", { replace: true });
+            } finally {
+                setLoading(false);
+            }
+        })();
+    }, [state?.mealplan, navigate]);
 
     const totals = useMemo(() => {
         if (!mealplan?.days?.length) return null;
@@ -39,6 +66,14 @@ export default function MealPlan() {
             reader.readAsDataURL(file);
         }
     };
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-sage-100 via-beige-50 to-white flex items-center justify-center">
+                <div className="text-sage-700 text-xl">Loading your meal plan...</div>
+            </div>
+        );
+    }
 
     if (!mealplan) return null;
 
@@ -69,6 +104,8 @@ export default function MealPlan() {
                         >
                             Edit Preferences
                         </button>
+                        <LogoutButton />
+                        <Avatar />
                     </div>
                 </div>
 

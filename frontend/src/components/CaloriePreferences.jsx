@@ -2,6 +2,8 @@ import React, { useRef, useState, useLayoutEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { gsap } from "gsap";
 import { prefsApi } from "../api/client.js";
+import Avatar  from './Avatar.jsx';
+import LogoutButton from "./LogoutButton.jsx";
 
 const CaloriePreferences = () => {
     const rootRef = useRef(null);
@@ -191,7 +193,8 @@ const CaloriePreferences = () => {
             </div>
 
             <div ref={rootRef} className="bg-[length:260%_260%] bg-gradient-to-br from-sage-300 via-sage-500 to-beige-300 py-8">
-                <div className="max-w-4xl mx-auto px-4">
+                <div className="fixed top-4 right-4 z-50"><Avatar /></div>
+                <div className="relative max-w-4xl mx-auto px-4">
                     <div className="text-center mb-8 cp-header">
                         <h1 className="text-4xl font-bold text-sage-50 drop-shadow-[0_0_12px_rgba(134,151,95,0.4)] mb-2">
                             Set Your Health Preferences
@@ -293,6 +296,9 @@ const CaloriePreferences = () => {
                             >
                                 Generate Meal Plan
                             </button>
+                        </div>
+                        <div className="flex justify-center pt-4">
+                            <LogoutButton className="px-6 py-3 font-medium" />
                         </div>
                         {(saving || generating) && (
                             <p className="text-sm text-sage-800">{saving || generating}</p>

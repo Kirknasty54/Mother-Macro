@@ -308,6 +308,43 @@ def put_preferences():
         traceback.print_exc()
         return jsonify({"ok": False, "msg": f"failed to save preferences: {e}"}), 500
 
+@bp.get("/mealplans")
+def get_mealplan():
+    try:
+        claims = _claims_from_auth_header()
+        user_id = _oid(claims.get("sub", ""))
+        doc = db.user_prefs.find_one({"user_id": user_id})
+
+        if not doc or "meal_plan" not in doc:
+            return jsonify({"ok": True, "mealplan": None})
+
+        return jsonify({"ok": True, "mealplan": doc["meal_plan"]})
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"ok": False, "msg": f"failed to load mealplan: {e}"}), 500
+
+@bp.post("/mealplans/save")
+def save_mealplan():
+    try:
+        claims = _claims_from_auth_header()
+        user_id = _oid(claims.get("sub", ""))
+        body = request.get_json(force=True, silent=True) or {}
+        mealplan = body.get("mealplan")
+
+        if not mealplan:
+            return jsonify({"ok": False, "msg": "mealplan required"}), 400
+
+        db.user_prefs.update_one(
+            {"user_id": user_id},
+            {"$set": {"meal_plan": mealplan}, "$setOnInsert": {"user_id": user_id}},
+            upsert=True,
+        )
+
+        return jsonify({"ok": True})
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"ok": False, "msg": f"failed to save mealplan: {e}"}), 500
+
 @bp.post("/mealplans/generate")
 def generate_mealplan():
     try:
@@ -324,6 +361,13 @@ def generate_mealplan():
 
         if mealplan is None:
             mealplan = _fallback_mealplan(prefs)
+
+        # Save the generated meal plan
+        db.user_prefs.update_one(
+            {"user_id": user_id},
+            {"$set": {"meal_plan": mealplan}, "$setOnInsert": {"user_id": user_id}},
+            upsert=True,
+        )
 
         return jsonify({
             "ok": True,
