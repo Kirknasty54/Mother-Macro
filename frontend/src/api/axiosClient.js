@@ -49,11 +49,11 @@ axiosClient.interceptors.response.use(
 
             const refreshToken = localStorage.getItem("refresh_token");
             if (!refreshToken) {
-                // No refresh token, clear everything and reject
+                // No refresh token, clear everything and force reload to reset state
                 localStorage.removeItem("access_token");
                 localStorage.removeItem("refresh_token");
                 localStorage.removeItem("user");
-                window.location.href = "/login";
+                window.location.replace("/login");
                 return Promise.reject(new Error("Session expired. Please login again."));
             }
 
@@ -83,14 +83,14 @@ axiosClient.interceptors.response.use(
                 // Retry the original request
                 return axiosClient(originalRequest);
             } catch (refreshError) {
-                // Refresh failed, clear everything and redirect to login
+                // Refresh failed, clear everything and force reload to reset state
                 processQueue(refreshError, null);
                 isRefreshing = false;
 
                 localStorage.removeItem("access_token");
                 localStorage.removeItem("refresh_token");
                 localStorage.removeItem("user");
-                window.location.href = "/login";
+                window.location.replace("/login");
 
                 return Promise.reject(new Error("Session expired. Please login again."));
             }
