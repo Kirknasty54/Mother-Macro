@@ -2,7 +2,7 @@
 Team 11 
 Mother Macro
 
-Our goal is to help users save as much money as possible on their health insurance, especially during these times. That's why we've created Mother Macro. By encouraging users to eat a healthier and more rounded diet, we're partnering with health insurance agencies to get users even better deals 
+Our goal is to help users save as much money as possible on their health insurance, especially during these times. That's why we've created Mother Macro. By encouraging users to eat a healthier and more rounded diet, we're  hoping to partner with health insurance agencies to get users even better deals 
 ## TO DO: 
 - [ ] Add in user's insurance information to MongoDB
 - [ ] Logging food functionality 
